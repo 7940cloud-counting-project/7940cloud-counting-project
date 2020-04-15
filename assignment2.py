@@ -1,21 +1,16 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
 from __future__ import unicode_literals
 
 import os
 import sys
 import redis
 import requests
+import bs4
+
+
+from datetime import datetime
+
+from PIL import Image
+from io import BytesIO
 
 from argparse import ArgumentParser
 
@@ -31,6 +26,9 @@ from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageMessage, VideoMessage, FileMessage, StickerMessage, StickerSendMessage
 )
 from linebot.utils import PY3
+
+from bs4 import BeautifulSoup
+
 
 app = Flask(__name__)
 
@@ -53,6 +51,7 @@ parser = WebhookParser(channel_secret)
 
 
 @app.route("/callback", methods=['POST'])
+
 def callback():
     signature = request.headers['X-Line-Signature']
 
@@ -71,16 +70,7 @@ def callback():
         if not isinstance(event, MessageEvent):
             continue
         if isinstance(event.message, TextMessage):
-            handle_TextMessage(event)
-        if isinstance(event.message, ImageMessage):
-            handle_ImageMessage(event)
-        if isinstance(event.message, VideoMessage):
-            handle_VideoMessage(event)
-        if isinstance(event.message, FileMessage):
-            handle_FileMessage(event)
-        if isinstance(event.message, StickerMessage):
-            handle_StickerMessage(event)
-
+            handle_TextMessage_forSearch(event)
         if not isinstance(event, MessageEvent):
             continue
         if not isinstance(event.message, TextMessage):
@@ -88,8 +78,91 @@ def callback():
 
     return 'OK'
 
+def quit():
+    print("Thanks for using")
+    sys.exit(0)
+
+def handle_TextMessage_forPDF(event):
+    HOST = "redis-12230.c15.us-east-1-4.ec2.cloud.redislabs.com"
+    PWD = "ejnxK44QJ6MVyhbS2ou93rXLGccl3b7s"
+    PORT = "12230" 
+    url = "https://www.who.int/docs/default-source/coronaviruse/situation-reports/20200414-sitrep-85-covid-19.pdf?sfvrsn=7b8629bb_4"
+    r = redis.Redis(host = HOST, password = PWD, port = PORT)
+
+    if bool(r.get("pdfURL")) == 0:
+        res = r.set("newsURL", url)
+        r.setex('newsURL', url, 5)
+        print(url)
+        return url
+
+    else:
+        r.get("pdfURL")
+        res = r.get("pdfURL")
+        print(res)
+        return res
+        # html = getHTMLText(new_res)
+        # msg = forNews(html) 
+        # line_bot_api.reply_message(
+        # event.reply_token,
+        # TextSendMessage(msg)
+        # )
+
+def handle_TextMessage_forNew(event):
+    HOST = "redis-12230.c15.us-east-1-4.ec2.cloud.redislabs.com"
+    PWD = "ejnxK44QJ6MVyhbS2ou93rXLGccl3b7s"
+    PORT = "12230" 
+    url = "http://www.xinhuanet.com/politics/2020-04/06/c_1125819214.htm"
+
+    r = redis.Redis(host = HOST, password = PWD, port = PORT)
+    if bool(r.get("newsURL")) == 0:
+        res = r.set("newsURL", url)
+        r.setex('newsURL', url, 5)
+        print(url)
+        html = getHTMLText(url)
+        return forNews(html)
+        # msg = forNews(html) 
+        # line_bot_api.reply_message(
+        # event.reply_token,
+        # TextSendMessage(msg)
+        # )
+
+    else:
+        r.get("newsURL")
+        res = r.get("newsURL")
+        print(res)
+        html = getHTMLText(res)
+        return forNews(html)
+
+
+
+def handle_TextMessage_forPicture(event):
+    img_src ="https://www.rivm.nl/sites/default/files/2020-04/niet_gemeld_als_zorgmedewerker.png"
+    return img_src
+    # msg = img_src
+    # line_bot_api.reply_message(
+    #     event.reply_token,
+    #     TextSendMessage(msg)
+    # )
+
+
+
 # Handler function for Text Message
-def handle_TextMessage(event):
+def handle_TextMessage_forSearch(event):
+    msg = print(meau = """
+ Main meau
+ --------------------
+ you may want to do some search,please input:'I want to know XXX'
+ 2:Finding the definition of COVID-19 in Chinese
+ 3:Return a news about COVID-19 in Chinese
+ 4:Return a picture
+ 5:Return a PDF report about COID-19
+ 6:Quit
+ -------------------
+""")
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(msg)
+        )
     print(event.message.text)
     #msg = 'You said: "' + event.message.text + '" '
     
@@ -97,20 +170,42 @@ def handle_TextMessage(event):
     sentence_cut = sentence.split()
     for i in range(len(sentence_cut)):
         print(sentence_cut[i])
-#     keyword1 = sentence.split()[0]
-#     keyword2 = sentence.split()[1]
-#     keyword3 = sentence.split()[2]
-#     keyword4 = sentence.split()[3]
-#     keyword5 = sentence.split()[4]
     
     error_Text = "you need to input:'I want to know XXX'"
     if sentence_cut[0] != "I":
-        print(error_Text)
-        msg = error_Text
-        line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(msg)
-        )
+        if sentence_cut[0] == '2':
+            msg = handle_TextMessage_forDefinition(event)
+            line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(msg)
+            )
+        elif sentence_cut[0] == '3':
+            msg = handle_TextMessage_forNew(event)
+            line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(msg)
+            )
+        elif sentence_cut[0] == '4':
+            msg = handle_TextMessage_forPicture(event)
+            line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(msg)
+            )
+        elif sentence_cut[0] == '5':
+            msg = handle_TextMessage_forPDF(event)
+            line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(msg)
+            )
+        elif sentence_cut[0] == '6':
+            sys.exit(1)
+        else:
+            print(error_Text)
+            msg = error_Text
+            line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(msg)
+            )
     elif sentence_cut[1] != "want":
         print(error_Text)
         msg = error_Text
@@ -153,36 +248,43 @@ def handle_TextMessage(event):
             event.reply_token,
             TextSendMessage(msg)
             )
+    
+def getHTMLText(url):
+    try:
+        kv = {'user-agent':'Mozilla/5.0'}
+        r = requests.get(url,headers = kv, timeout = 30)
+        #r = requests.get(url, timeout = 30)
+        #r.raise_for_status()
+        r.encoding = r.apparent_encoding
+        return r.text
+    except:
+        return "fail"
+def fillList(ulist, html):
+    soup = BeautifulSoup(html, "html.parser")
+    #soup.find_all('meta', attrs={"name":"description"})
+    description = soup.find(attrs={"name":"description"})['content']
+    return description   
+    # print(description)
 
-# Handler function for Sticker Message
-def handle_StickerMessage(event):
-    line_bot_api.reply_message(
-        event.reply_token,
-        StickerSendMessage(
-            package_id=event.message.package_id,
-            sticker_id=event.message.sticker_id)
-    )
+def forNews(html):
+    soup = BeautifulSoup(html, "html.parser")
+    for p in soup.body.find_all('p'):
+        #print(p.text)
+        return(p.text)
+        
 
-# Handler function for Image Message
-def handle_ImageMessage(event):
-    line_bot_api.reply_message(
-	event.reply_token,
-	TextSendMessage(text="Nice image!")
-    )
+def handle_TextMessage_forDefinition(event):
+    uinfo=[]
+    url = "https://baike.baidu.com/item/%E6%96%B0%E5%9E%8B%E5%86%A0%E7%8A%B6%E7%97%85%E6%AF%92%E8%82%BA%E7%82%8E/24282529?fromtitle=COVID-19&fromid=24357637&fr=aladdin"
+    html = getHTMLText(url)
+    return fillList(uinfo,html)
+    # msg = fillList(uinfo, html)
+    # line_bot_api.reply_message(
+    #     event.reply_token,
+    #     TextSendMessage(msg)
+    #     )
 
-# Handler function for Video Message
-def handle_VideoMessage(event):
-    line_bot_api.reply_message(
-	event.reply_token,
-	TextSendMessage(text="Nice video!")
-    )
 
-# Handler function for File Message
-def handle_FileMessage(event):
-    line_bot_api.reply_message(
-	event.reply_token,
-	TextSendMessage(text="Nice file!")
-    )
 
 if __name__ == "__main__":
     arg_parser = ArgumentParser(
@@ -192,4 +294,5 @@ if __name__ == "__main__":
     options = arg_parser.parse_args()
 
     app.run(host='0.0.0.0', debug=options.debug, port=heroku_port)
+    
 
